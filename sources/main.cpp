@@ -1,5 +1,7 @@
 #include <cstdio>
 #include <format>
+#include <iostream>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -67,6 +69,8 @@ int main(int argc, const char* argv[]) {
     GLuint compute = loadComputeProgram("resources/gol.comp");
     GLuint display = loadShaderProgram("resources/gol.vert", "resources/gol.frag");
 
+    GLuint loader = loadComputeProgram("resources/loader.comp");
+
     GLint u_texture = glGetUniformLocation(display, "u_texture");
 
     GLint u_resolution = glGetUniformLocation(compute, "u_resolution");
@@ -108,7 +112,9 @@ int main(int argc, const char* argv[]) {
 
     bool file_loading = false;
     std::string file_path;
-    GLuint image_that_loads = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+    GLuint loadimg = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+    glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+
     auto open_file = [] -> std::string {
         FILE* pipe = popen("kdialog --getopenfilename . '*.png *.jpg *.jpeg *.bmp *.tga'", "r");
         if (!pipe) {
@@ -146,9 +152,13 @@ int main(int argc, const char* argv[]) {
         glfwPollEvents();
 
         if (file_loading) {
-            reloadTexture(image_that_loads, file_path);
+            reloadTexture(loadimg, file_path);
 
-            // TODO: Render the image_that_loads texture to the buffer1 texture, RGBA -> R32F
+            glUseProgram(loader);
+            glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+            glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
+            glDispatchCompute(BUFFER_WIDTH, BUFFER_HEIGHT, 1);
+            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
             file_loading = false;
         }
