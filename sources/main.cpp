@@ -1,4 +1,6 @@
+#include <cstdio>
 #include <format>
+#include <string>
 #include <vector>
 
 #define GLFW_INCLUDE_NONE
@@ -6,6 +8,7 @@
 
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -14,14 +17,17 @@
 #include "loader.hpp"
 #include "rng.hpp"
 
-constexpr int WINDOW_WIDTH = 960;
-constexpr int WINDOW_HEIGHT = 720;
+constexpr int WINDOW_WIDTH = 720;
+constexpr int WINDOW_HEIGHT = 640;
 
 constexpr float FRAMERATE = 30.0f;
 constexpr float FRAME_TIME = 1.0f / FRAMERATE;
 
 constexpr int BUFFER_WIDTH = 320;
 constexpr int BUFFER_HEIGHT = 240;
+
+constexpr int FRAMEBUFFER_WIDTH = 640;
+constexpr int FRAMEBUFFER_HEIGHT = 480;
 
 std::vector<float> getRandomImage(int width, int height, float proba = .95) {
     static RandomNumberGenerator rng;
@@ -45,10 +51,12 @@ int main(int argc, const char* argv[]) {
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
-        glViewport(0, 0, width, height);
-    });
     gladLoadGL();
+
+    GLuint framebuffer_texture =
+        createTexture(FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+    GLuint framebuffer = createFramebuffer(framebuffer_texture);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     auto image = getRandomImage(BUFFER_WIDTH, BUFFER_HEIGHT);
     GLuint buffer1 = createTexture(BUFFER_WIDTH, BUFFER_HEIGHT, GL_R32F, GL_RED, GL_FLOAT, image.data());
@@ -98,21 +106,60 @@ int main(int argc, const char* argv[]) {
     update_rules();
     glUniform2i(u_resolution, BUFFER_WIDTH, BUFFER_HEIGHT);
 
+    bool file_loading = false;
+    std::string file_path;
+    GLuint image_that_loads = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+    auto open_file = [] -> std::string {
+        FILE* pipe = popen("kdialog --getopenfilename . '*.png *.jpg *.jpeg *.bmp *.tga'", "r");
+        if (!pipe) {
+            return "";
+        }
+        char buffer[512];
+        std::string result = "";
+        while (!feof(pipe)) {
+            if (fgets(buffer, 512, pipe) != NULL) {
+                result += buffer;
+            }
+        }
+        pclose(pipe);
+        return result.substr(0, result.length() - 1);
+    };
+
+    struct State {
+        glm::vec2 res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
+    } state;
+    glfwSetWindowUserPointer(window, &state);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
+        State& state = *static_cast<State*>(glfwGetWindowUserPointer(window));
+        state.res = glm::vec2(width, height);
+    });
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 460");
 
     double last_time = glfwGetTime();
-
     do {
-        glfwPollEvents();
-        glClear(GL_COLOR_BUFFER_BIT);
-
         double current_time = glfwGetTime();
         double elapsed_time = current_time - last_time;
+        glfwPollEvents();
+
+        if (file_loading) {
+            reloadTexture(image_that_loads, file_path);
+
+            // TODO: Render the image_that_loads texture to the buffer1 texture, RGBA -> R32F
+
+            file_loading = false;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glViewport(0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
+        glClear(GL_COLOR_BUFFER_BIT);
         if (elapsed_time > FRAME_TIME) {
             glUseProgram(compute);
+            glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
+            glBindImageTexture(1, buffer2, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
             glDispatchCompute(BUFFER_WIDTH, BUFFER_HEIGHT, 1);
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
             glCopyImageSubData(
@@ -120,19 +167,23 @@ int main(int argc, const char* argv[]) {
             );
             last_time = current_time;
         }
-
         glUseProgram(display);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, state.res.x, state.res.y);
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always, ImVec2(0, 0));
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(state.res.x, state.res.y), ImGuiCond_Always);
         ImGui::Begin(
             "Debug", nullptr,
             ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
-                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                ImGuiWindowFlags_NoTitleBar
         );
 
         for (int i = 0; i < 9; i++) {
@@ -157,8 +208,21 @@ int main(int argc, const char* argv[]) {
             replaceTexture(buffer1, BUFFER_WIDTH, BUFFER_HEIGHT, GL_R32F, GL_RED, GL_FLOAT, image.data());
             update_rules();
         }
+
+        if (ImGui::Button("Open file")) {
+            file_path = open_file();
+            if (!file_path.empty()) {
+                file_loading = true;
+            }
+        }
+        if (!file_path.empty()) {
+            ImGui::SameLine();
+            ImGui::Text("...%s", file_path.substr(file_path.length() - 64, 64).c_str());
+        }
+
         ImGui::SliderFloat("Generation probability", &gen_proba, 0.0f, 1.0f);
 
+        ImGui::Image((void*)(intptr_t)framebuffer_texture, ImVec2(FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT));
         ImGui::End();
 
         ImGui::Render();

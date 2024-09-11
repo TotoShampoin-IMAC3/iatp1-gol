@@ -10,8 +10,9 @@ GLuint createTexture(
     int width, int height, GLenum internalformat, GLenum format, GLenum type, const void* data = nullptr
 );
 void replaceTexture(
-    GLuint texture, int width, int height, GLenum internalformat, GLenum format, GLenum type, const void* data
+    GLuint texture, int width, int height, GLenum internalformat, GLenum format, GLenum type, const void* data = nullptr
 );
+void reloadTexture(GLuint texture, const std::filesystem::path& file);
 void getTexture(GLuint texture, GLenum format, GLenum type, void* data);
 GLuint createRenderbuffer(int width, int height);
 GLuint createFramebuffer(GLuint texture, GLuint renderbuffer = 0);

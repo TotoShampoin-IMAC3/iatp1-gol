@@ -56,7 +56,7 @@ GLuint loadTexture(const std::filesystem::path& file) {
     int w, h, d;
     stbi_set_flip_vertically_on_load(true);
     auto img = stbi_load(file.c_str(), &w, &h, &d, 0);
-    if (!img) {
+    if (!img) { // NOLINT
         const char* failureReason = stbi_failure_reason();
         throw std::runtime_error(failureReason);
     }
@@ -101,7 +101,40 @@ void replaceTexture(
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
+void reloadTexture(GLuint texture, const std::filesystem::path& file) {
+    int w, h, d;
+    stbi_set_flip_vertically_on_load(true);
+    auto img = stbi_load(file.c_str(), &w, &h, &d, 0);
+    if (!img) { // NOLINT
+        const char* failureReason = stbi_failure_reason();
+        throw std::runtime_error(failureReason);
+    }
+    GLenum format;
+    switch (d) {
+    case 1: format = GL_RED; break;
+    case 2: format = GL_RG; break;
+    case 3: format = GL_RGB; break;
+    case 4: format = GL_RGBA; break;
+    default: break;
+    }
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, img);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    stbi_image_free(img);
+}
+
 void getTexture(GLuint texture, GLenum format, GLenum type, void* data) {
     glBindTexture(GL_TEXTURE_2D, texture);
     glGetTexImage(GL_TEXTURE_2D, 0, format, type, data);
+}
+
+GLuint createFramebuffer(GLuint texture, GLuint renderbuffer) {
+    GLuint framebuffer;
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    if (renderbuffer) {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, renderbuffer);
+    }
+    return framebuffer;
 }
