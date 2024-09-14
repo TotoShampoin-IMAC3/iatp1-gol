@@ -11,7 +11,7 @@ uniform int u_rules[9];
 float getPixel(int rel_x, int rel_y) {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 coord = texelCoord + ivec2(rel_x, rel_y);
-    coord = (coord % u_resolution + u_resolution) % u_resolution;
+    coord = (coord + u_resolution) % u_resolution;
     return imageLoad(imgInput, coord).r;
 }
 

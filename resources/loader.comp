@@ -9,7 +9,7 @@ void main() {
 
     vec4 pixel = imageLoad(imgInput, texelCoord);
 
-    float value = length(pixel) > 0.0 ? 1.0 : 0.0;
+    float value = length(pixel) > 0.0 ? 1 : 0;
 
     imageStore(imgOutput, texelCoord, vec4(value));
 

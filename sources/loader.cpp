@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -49,14 +50,30 @@ GLuint loadComputeProgram(const std::filesystem::path& compute_file) {
     return program;
 }
 
+std::vector<float> loadImage(const std::filesystem::path& file) {
+    int w, h, d;
+    stbi_set_flip_vertically_on_load(false);
+    auto img = stbi_load(file.c_str(), &w, &h, &d, 0);
+    if (!img) {
+        const char* failureReason = stbi_failure_reason();
+        throw std::runtime_error(failureReason);
+    }
+    std::vector<float> image(w * h);
+    for (int i = 0; i < w * h; i++) {
+        image[i] = img[i * d] > 0 ? 1.0f : 0.0f;
+    }
+    stbi_image_free(img);
+    return image;
+}
+
 GLuint loadTexture(const std::filesystem::path& file) {
     GLuint texture;
     glCreateTextures(GL_TEXTURE_2D, 1, &texture);
     glGenTextures(1, &texture);
     int w, h, d;
-    stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(false);
     auto img = stbi_load(file.c_str(), &w, &h, &d, 0);
-    if (!img) { // NOLINT
+    if (!img) {
         const char* failureReason = stbi_failure_reason();
         throw std::runtime_error(failureReason);
     }
@@ -71,8 +88,8 @@ GLuint loadTexture(const std::filesystem::path& file) {
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, img);
     glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     stbi_image_free(img);

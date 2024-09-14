@@ -1,10 +1,12 @@
 #pragma once
 #include <GL/gl.h>
 #include <filesystem>
+#include <vector>
 
 GLuint loadShader(const std::filesystem::path& file, const GLuint& type);
 GLuint loadShaderProgram(const std::filesystem::path& vertex_file, const std::filesystem::path& frament_file);
 GLuint loadComputeProgram(const std::filesystem::path& compute_file);
+std::vector<float> loadImage(const std::filesystem::path& file);
 GLuint loadTexture(const std::filesystem::path& file);
 GLuint createTexture(
     int width, int height, GLenum internalformat, GLenum format, GLenum type, const void* data = nullptr

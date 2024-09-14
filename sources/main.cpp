@@ -1,7 +1,5 @@
 #include <cstdio>
 #include <format>
-#include <iostream>
-#include <ostream>
 #include <string>
 #include <vector>
 
@@ -69,7 +67,7 @@ int main(int argc, const char* argv[]) {
     GLuint compute = loadComputeProgram("resources/gol.comp");
     GLuint display = loadShaderProgram("resources/gol.vert", "resources/gol.frag");
 
-    GLuint loader = loadComputeProgram("resources/loader.comp");
+    // GLuint loader = loadComputeProgram("resources/loader.comp");
 
     GLint u_texture = glGetUniformLocation(display, "u_texture");
 
@@ -101,6 +99,8 @@ int main(int argc, const char* argv[]) {
     };
     float gen_proba = .05;
 
+    int framerate = FRAMERATE;
+
     glUseProgram(display);
     glBindTexture(GL_TEXTURE_2D, buffer2);
     glActiveTexture(GL_TEXTURE0);
@@ -110,10 +110,10 @@ int main(int argc, const char* argv[]) {
     update_rules();
     glUniform2i(u_resolution, BUFFER_WIDTH, BUFFER_HEIGHT);
 
-    bool file_loading = false;
+    // bool file_loading = false;
     std::string file_path;
-    GLuint loadimg = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
-    glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+    // GLuint loadimg = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+    // glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
 
     auto open_file = [] -> std::string {
         FILE* pipe = popen("kdialog --getopenfilename . '*.png *.jpg *.jpeg *.bmp *.tga'", "r");
@@ -151,22 +151,10 @@ int main(int argc, const char* argv[]) {
         double elapsed_time = current_time - last_time;
         glfwPollEvents();
 
-        if (file_loading) {
-            reloadTexture(loadimg, file_path);
-
-            glUseProgram(loader);
-            glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-            glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
-            glDispatchCompute(BUFFER_WIDTH, BUFFER_HEIGHT, 1);
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-            file_loading = false;
-        }
-
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glViewport(0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT);
-        if (elapsed_time > FRAME_TIME) {
+        if (elapsed_time > 1.f / framerate) {
             glUseProgram(compute);
             glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
             glBindImageTexture(1, buffer2, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
@@ -218,11 +206,14 @@ int main(int argc, const char* argv[]) {
             replaceTexture(buffer1, BUFFER_WIDTH, BUFFER_HEIGHT, GL_R32F, GL_RED, GL_FLOAT, image.data());
             update_rules();
         }
+        ImGui::SameLine();
+        ImGui::InputInt("Framerate", &framerate);
 
         if (ImGui::Button("Open file")) {
             file_path = open_file();
             if (!file_path.empty()) {
-                file_loading = true;
+                auto image = loadImage(file_path);
+                replaceTexture(buffer1, BUFFER_WIDTH, BUFFER_HEIGHT, GL_R32F, GL_RED, GL_FLOAT, image.data());
             }
         }
         if (!file_path.empty()) {
