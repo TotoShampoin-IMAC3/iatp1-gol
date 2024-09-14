@@ -40,6 +40,33 @@ std::vector<float> getRandomImage(int width, int height, float proba = .95) {
     return image;
 }
 
+std::string openFile() {
+    FILE* pipe = popen("kdialog --getopenfilename . '*.png *.jpg *.jpeg *.bmp *.tga'", "r");
+    if (!pipe) {
+        return "";
+    }
+    char buffer[512];
+    std::string result = "";
+    while (!feof(pipe)) {
+        if (fgets(buffer, 512, pipe) != NULL) {
+            result += buffer;
+        }
+    }
+    pclose(pipe);
+    return result.substr(0, result.length() - 1);
+};
+
+const char* ruleValue(int rule_val) {
+    if (rule_val == 0) {
+        return "Die";
+    } else if (rule_val == 1) {
+        return "Birth";
+    } else if (rule_val == 2) {
+        return "Survive";
+    }
+    return "Unknown";
+}
+
 int main(int argc, const char* argv[]) {
     glfwSetErrorCallback([](int error, const char* description) { fprintf(stderr, "Error: %s\n", description); });
     if (!glfwInit()) {
@@ -67,8 +94,6 @@ int main(int argc, const char* argv[]) {
     GLuint compute = loadComputeProgram("resources/gol.comp");
     GLuint display = loadShaderProgram("resources/gol.vert", "resources/gol.frag");
 
-    // GLuint loader = loadComputeProgram("resources/loader.comp");
-
     GLint u_texture = glGetUniformLocation(display, "u_texture");
 
     GLint u_resolution = glGetUniformLocation(compute, "u_resolution");
@@ -79,16 +104,6 @@ int main(int argc, const char* argv[]) {
                         glGetUniformLocation(compute, "u_rules[6]"), glGetUniformLocation(compute, "u_rules[7]")};
 
     int rules[9] = {0, 0, 2, 1, 0, 0, 0, 0};
-    auto rule_value = [](int rule_val) {
-        if (rule_val == 0) {
-            return "Die";
-        } else if (rule_val == 1) {
-            return "Birth";
-        } else if (rule_val == 2) {
-            return "Survive";
-        }
-        return "Unknown";
-    };
     bool is_updated = false;
     auto update_rules = [&] {
         glUseProgram(compute);
@@ -110,26 +125,7 @@ int main(int argc, const char* argv[]) {
     update_rules();
     glUniform2i(u_resolution, BUFFER_WIDTH, BUFFER_HEIGHT);
 
-    // bool file_loading = false;
     std::string file_path;
-    // GLuint loadimg = createTexture(1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
-    // glBindImageTexture(2, loadimg, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-
-    auto open_file = [] -> std::string {
-        FILE* pipe = popen("kdialog --getopenfilename . '*.png *.jpg *.jpeg *.bmp *.tga'", "r");
-        if (!pipe) {
-            return "";
-        }
-        char buffer[512];
-        std::string result = "";
-        while (!feof(pipe)) {
-            if (fgets(buffer, 512, pipe) != NULL) {
-                result += buffer;
-            }
-        }
-        pclose(pipe);
-        return result.substr(0, result.length() - 1);
-    };
 
     struct State {
         glm::vec2 res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -188,7 +184,7 @@ int main(int argc, const char* argv[]) {
             if (i != 0) {
                 ImGui::SameLine();
             }
-            if (ImGui::Button(std::format("{}: {} ##{}", i, rule_value(rules[i]), i).c_str())) {
+            if (ImGui::Button(std::format("{}: {} ##{}", i, ruleValue(rules[i]), i).c_str())) {
                 rules[i] = (rules[i] + 1) % 3;
                 is_updated = false;
             }
@@ -210,7 +206,7 @@ int main(int argc, const char* argv[]) {
         ImGui::InputInt("Framerate", &framerate);
 
         if (ImGui::Button("Open file")) {
-            file_path = open_file();
+            file_path = openFile();
             if (!file_path.empty()) {
                 auto image = loadImage(file_path);
                 replaceTexture(buffer1, BUFFER_WIDTH, BUFFER_HEIGHT, GL_R32F, GL_RED, GL_FLOAT, image.data());
