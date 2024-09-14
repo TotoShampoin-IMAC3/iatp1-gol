@@ -115,6 +115,7 @@ int main(int argc, const char* argv[]) {
     float gen_proba = .05;
 
     int framerate = FRAMERATE;
+    bool is_paused = false;
 
     glUseProgram(display);
     glBindTexture(GL_TEXTURE_2D, buffer2);
@@ -150,7 +151,7 @@ int main(int argc, const char* argv[]) {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glViewport(0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT);
-        if (elapsed_time > 1.f / framerate) {
+        if (!is_paused && elapsed_time > 1.f / framerate) {
             glUseProgram(compute);
             glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
             glBindImageTexture(1, buffer2, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
@@ -204,6 +205,10 @@ int main(int argc, const char* argv[]) {
         }
         ImGui::SameLine();
         ImGui::InputInt("Framerate", &framerate);
+
+        if (ImGui::Button(is_paused ? "Resume##pause" : "Pause##pause")) {
+            is_paused = !is_paused;
+        }
 
         if (ImGui::Button("Open file")) {
             file_path = openFile();
