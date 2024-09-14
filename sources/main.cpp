@@ -60,11 +60,11 @@ std::string openFile() {
 
 const char* ruleValue(int rule_val) {
     if (rule_val == 0) {
-        return "Die";
+        return "X";
     } else if (rule_val == 1) {
-        return "Birth";
+        return "+";
     } else if (rule_val == 2) {
-        return "Survive";
+        return "O";
     }
     return "Unknown";
 }
