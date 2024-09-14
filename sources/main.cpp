@@ -1,5 +1,7 @@
 #include <cstdio>
 #include <format>
+#include <iostream>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -97,6 +99,9 @@ int main(int argc, const char* argv[]) {
     GLint u_texture = glGetUniformLocation(display, "u_texture");
 
     GLint u_resolution = glGetUniformLocation(compute, "u_resolution");
+    auto u_cursor_pos = glGetUniformLocation(compute, "u_cursor_pos");
+    auto u_cursor_down = glGetUniformLocation(compute, "u_cursor_down");
+    auto u_paused = glGetUniformLocation(compute, "u_paused");
 
     GLint u_rules[9] = {glGetUniformLocation(compute, "u_rules[0]"), glGetUniformLocation(compute, "u_rules[1]"),
                         glGetUniformLocation(compute, "u_rules[2]"), glGetUniformLocation(compute, "u_rules[3]"),
@@ -127,14 +132,27 @@ int main(int argc, const char* argv[]) {
     glUniform2i(u_resolution, BUFFER_WIDTH, BUFFER_HEIGHT);
 
     std::string file_path;
+    glm::vec2 screen_pos = glm::vec2(0);
+    glm::vec2 screen_size = glm::vec2(0);
+    glm::vec2 BUFFER_SIZE = glm::vec2(BUFFER_WIDTH, BUFFER_HEIGHT);
 
     struct State {
         glm::vec2 res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
+        glm::vec2 cursor_pos = glm::vec2(0);
+        bool cursor_down = false;
     } state;
     glfwSetWindowUserPointer(window, &state);
     glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
         State& state = *static_cast<State*>(glfwGetWindowUserPointer(window));
         state.res = glm::vec2(width, height);
+    });
+    glfwSetCursorPosCallback(window, [](GLFWwindow* window, double x, double y) {
+        State& state = *static_cast<State*>(glfwGetWindowUserPointer(window));
+        state.cursor_pos = glm::vec2(x, y);
+    });
+    glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
+        State& state = *static_cast<State*>(glfwGetWindowUserPointer(window));
+        state.cursor_down = action == GLFW_PRESS;
     });
 
     IMGUI_CHECKVERSION();
@@ -151,8 +169,12 @@ int main(int argc, const char* argv[]) {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glViewport(0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT);
-        if (!is_paused && elapsed_time > 1.f / framerate) {
+        if (elapsed_time > 1.f / framerate) {
             glUseProgram(compute);
+            auto pos = state.cursor_pos * BUFFER_SIZE / screen_size - screen_pos / 2.f;
+            glUniform2i(u_cursor_pos, pos.x, pos.y);
+            glUniform1i(u_cursor_down, state.cursor_down);
+            glUniform1i(u_paused, is_paused);
             glBindImageTexture(0, buffer1, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
             glBindImageTexture(1, buffer2, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32F);
             glDispatchCompute(BUFFER_WIDTH, BUFFER_HEIGHT, 1);
@@ -225,6 +247,11 @@ int main(int argc, const char* argv[]) {
         ImGui::SliderFloat("Generation probability", &gen_proba, 0.0f, 1.0f);
 
         ImGui::Image((void*)(intptr_t)framebuffer_texture, ImVec2(FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT));
+        auto pos = ImGui::GetItemRectMin();
+        auto size = ImGui::GetItemRectSize();
+        screen_pos = glm::vec2(pos.x, pos.y);
+        screen_size = glm::vec2(size.x, size.y);
+
         ImGui::End();
 
         ImGui::Render();

@@ -8,6 +8,10 @@ uniform ivec2 u_resolution;
 
 uniform int u_rules[9];
 
+uniform ivec2 u_cursor_pos;
+uniform bool u_cursor_down;
+uniform bool u_paused;
+
 float getPixel(int rel_x, int rel_y) {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 coord = texelCoord + ivec2(rel_x, rel_y);
@@ -29,16 +33,23 @@ void main() {
     neighboors += int(getPixel(1, 1) == 1);
 
     float value = getPixel(0, 0);
-
-    for(int i = 0; i < 8; i++) {
-        if(neighboors == i) {
-            if(u_rules[i] == 1) {
-                value = 1;
-            } else if(u_rules[i] == 2) {
-                value = value;
-            } else {
-                value = 0;
+    if(!u_paused) {
+        for(int i = 0; i < 8; i++) {
+            if(neighboors == i) {
+                if(u_rules[i] == 1) {
+                    value = 1;
+                } else if(u_rules[i] == 2) {
+                    value = value;
+                } else {
+                    value = 0;
+                }
             }
+        }
+    }
+
+    if(texelCoord == ivec2(u_cursor_pos)) {
+        if(u_cursor_down) {
+            value = 1;
         }
     }
 
